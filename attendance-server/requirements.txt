@@ -1,0 +1,31 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+alembic
+asyncpg
+pydantic[email]
+pydantic-settings
+python-jose[cryptography]
+passlib[argon2]
+python-multipart
+
+# The IANA timezone database. Linux and macOS ship it with the OS; Windows does
+# not, so ZoneInfo("Asia/Kolkata") raises there without this package. Listing it
+# unconditionally means the same requirements file works on every machine.
+tzdata
+
+# Phase 3 — kiosk face matching. pgvector is the Python-side companion to the
+# Postgres extension already enabled (face_templates.embedding, migration
+# 001) — this package is what lets SQLAlchemy speak the VECTOR column type
+# and the <=> cosine-distance operator; it does not install the extension
+# itself, that's already in the DB.
+pgvector
+insightface
+onnxruntime
+opencv-python-headless
+numpy
+
+# dev
+pytest
+pytest-asyncio
+httpx

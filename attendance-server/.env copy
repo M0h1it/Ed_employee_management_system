@@ -1,0 +1,12 @@
+APP_NAME="Attendance API"
+ENV=dev
+DEBUG=true
+
+DATABASE_URL=postgresql+asyncpg://attendance:dev_only_password@localhost:5433/attendance
+
+JWT_SECRET=lCJb6Me-0W5EAZUqHUL7LOWl95JiHq0VAkrY_0rAsRoOfjS6hRnHtl0Y1AqAn_FB
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_MINUTES=15
+REFRESH_TOKEN_DAYS=7
+
+CORS_ORIGINS=http://localhost:5173

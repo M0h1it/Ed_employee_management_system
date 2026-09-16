@@ -1,0 +1,86 @@
+# .gitignore — repo root
+#
+# Covers all three projects (attendance-server, attendance-admin,
+# attendance-kiosk) from one place. Patterns are written without a leading
+# path so they match at any depth — each project's own build tool drops
+# its caches/output in slightly different relative locations, and matching
+# by name rather than a hardcoded path means this keeps working if any of
+# the three projects ever get moved or renamed within the repo.
+#
+# THE SECTION THAT MATTERS MOST: SECRETS
+# -------------------------------------------
+# This repo is PUBLIC. Every .env file and the kiosk's local.config.ts
+# genuinely contain real credentials or a real server domain on someone's
+# machine — see attendance-server/.env's own contents and
+# attendance-kiosk/src/config/local.config.ts's header comment. Before the
+# first commit, run `git status` in a clean clone and confirm NONE of the
+# files this section lists appear as untracked/stageable.
+
+# ── Secrets — never commit these, in any project ────────────────────────
+.env
+.env.local
+.env.*.local
+attendance-kiosk/src/config/local.config.ts
+*.dump
+*.sql.gz
+
+# ── Python (attendance-server) ───────────────────────────────────────────
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+
+# Uploaded photos — real deployments back these up separately; they are
+# user data, not source, and a fresh clone should start with an empty
+# uploads/ the app recreates on its own (see PUNCH_PHOTO_DIR/UPLOAD_DIR's
+# own mkdir calls in the backend).
+uploads/
+
+# ── Node / web (attendance-admin) ────────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.log
+
+# ── React Native (attendance-kiosk) ──────────────────────────────────────
+# Android/Gradle
+android/build/
+android/app/build/
+android/.gradle/
+*.iml
+*.hprof
+.cxx/
+*.keystore
+!debug.keystore
+.kotlin/
+
+# iOS/Xcode (present even though this project currently targets Android
+# only — react-native init scaffolds both, and a later iOS build should not
+# need this file touched)
+ios/build/
+ios/Pods/
+ios/*.xcuserstate
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.xccheckout
+*.moved-aside
+
+# Metro / React Native tooling
+.metro-health-check*
+*.jsbundle
+local.properties
+
+# ── Editors / OS ──────────────────────────────────────────────────────────
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/

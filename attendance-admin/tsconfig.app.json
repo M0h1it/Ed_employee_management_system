@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
+
+    // ON.
+    //
+    // It was off, and that hid a real bug: `const { show } = useToast()` in
+    // seven files, where useToast returns a FUNCTION. Every call was
+    // `undefined is not a function` at runtime.
+    //
+    // Worth knowing WHY it hid for so long: `tsc --noEmit` on this
+    // solution-style config (files: [], references: [...]) checks NOTHING. It
+    // resolves zero files and reports success. The command that actually runs
+    // the check is `tsc -b --noEmit`, which is now `npm run typecheck` and part
+    // of `npm run build`.
+    //
+    // A green check that checks nothing is worse than no check, because it is
+    // believed.
+    // (remainder of the original note follows)
+    // Originally: kept off so you are not fighting the compiler while the errors will make sense.
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}

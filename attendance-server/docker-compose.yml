@@ -1,0 +1,27 @@
+services:
+  db:
+    # pgvector/pgvector ships Postgres 16 with the vector extension already
+    # compiled in. Plain postgres:16 would need it built by hand, and Phase 3
+    # face matching depends on it.
+    image: pgvector/pgvector:pg16
+    container_name: attendance-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: attendance
+      POSTGRES_PASSWORD: dev_only_password
+      POSTGRES_DB: attendance
+    ports:
+      # host:container — 5432 on your machine maps to 5432 inside.
+      - "5433:5432"
+    volumes:
+      # A named volume, so data survives `docker compose down`.
+      # Without it, every restart gives you an empty database.
+      - attendance_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U attendance"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  attendance_pgdata:
