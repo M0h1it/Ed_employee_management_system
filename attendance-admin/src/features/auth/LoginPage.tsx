@@ -63,7 +63,7 @@ export default function LoginPage() {
           </div>
           <div className="flex flex-col">
             <span className="font-headline-md text-headline-md text-zinc-900">
-              Nexus Operations
+              SmartPunch
             </span>
             <span className="font-label-sm text-label-sm text-zinc-500">
               Attendance &amp; workforce
@@ -145,18 +145,6 @@ export default function LoginPage() {
               {login.isPending ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-        </div>
-
-        {/* Demo accounts. Delete this block before the system goes live. */}
-        <div className="mt-space-base rounded-2xl bg-zinc-50 p-space-md">
-          <p className="font-label-sm text-label-sm uppercase tracking-wider text-zinc-400">
-            Demo accounts
-          </p>
-          <ul className="mt-space-xs flex flex-col gap-space-xxs font-mono-data text-mono-data text-zinc-500">
-            <li>owner / owner123 — full access</li>
-            <li>marcus / demo123 — manager</li>
-            <li>karan / demo123 — employee</li>
-          </ul>
         </div>
       </div>
     </div>

@@ -32,6 +32,7 @@ import {
 import clsx from 'clsx';
 import Avatar from '@/components/common/Avatar';
 import EmptyState from '@/components/common/EmptyState';
+import Tooltip from '@/components/common/Tooltip';
 import type { TimelineBar, TimelineRange, TimelineRow } from '@/contracts/types';
 
 /** How far back and forward each range looks. */
@@ -282,27 +283,47 @@ export default function TaskTimeline({
                     {placed.map(({ bar, lane }) => {
                       const box = geometry(bar);
                       if (!box) return null;
+                      // Below this width, even one character would clip —
+                      // showing a solid, unlabelled bar is more honest than
+                      // rendering text that cannot be read at all. The
+                      // tooltip (always available on hover, regardless of
+                      // width) is what actually answers "what is this".
+                      const tooManyNarrowForLabel = box.width < 28;
                       return (
-                        <div
+                        <Tooltip
                           key={bar.taskId}
-                          title={`${bar.title}\n${bar.startDate} to ${bar.endDate}${bar.isOverdue ? '  (overdue)' : ''}`}
-                          style={{
-                            left: box.left + 2,
-                            width: box.width,
-                            top: lane * 30 + 8,
-                          }}
-                          className={clsx(
-                            'absolute flex h-[22px] items-center overflow-hidden px-2 text-[10.5px] font-semibold text-white',
-                            barTone(bar),
-                            // A flat edge signals the bar continues beyond the
-                            // window; a rounded one signals it really ends here.
-                            box.clippedLeft ? 'rounded-l-none' : 'rounded-l-md',
-                            box.clippedRight ? 'rounded-r-none' : 'rounded-r-md',
-                            bar.status === 'done' && 'line-through opacity-80',
-                          )}
+                          content={
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-semibold">{bar.title}</span>
+                              <span className="text-zinc-300">
+                                {format(parseISO(bar.startDate), 'dd MMM')} –{' '}
+                                {format(parseISO(bar.endDate), 'dd MMM yyyy')}
+                                {bar.isOverdue && ' · Overdue'}
+                              </span>
+                            </div>
+                          }
                         >
-                          <span className="truncate">{bar.title}</span>
-                        </div>
+                          <div
+                            style={{
+                              left: box.left + 2,
+                              width: box.width,
+                              top: lane * 30 + 8,
+                            }}
+                            className={clsx(
+                              'absolute flex h-[22px] cursor-default items-center overflow-hidden px-2 text-[10.5px] font-semibold text-white',
+                              barTone(bar),
+                              // A flat edge signals the bar continues beyond the
+                              // window; a rounded one signals it really ends here.
+                              box.clippedLeft ? 'rounded-l-none' : 'rounded-l-md',
+                              box.clippedRight ? 'rounded-r-none' : 'rounded-r-md',
+                              bar.status === 'done' && 'line-through opacity-80',
+                            )}
+                          >
+                            {!tooManyNarrowForLabel && (
+                              <span className="truncate">{bar.title}</span>
+                            )}
+                          </div>
+                        </Tooltip>
                       );
                     })}
                   </div>

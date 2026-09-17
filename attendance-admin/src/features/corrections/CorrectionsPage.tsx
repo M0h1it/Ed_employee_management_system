@@ -5,6 +5,7 @@
  */
 
 import { useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import PageHeader from '@/components/common/PageHeader';
 import Button from '@/components/common/Button';
@@ -17,6 +18,7 @@ import { useToast } from '@/components/common/Toast';
 import { useCan } from '@/lib/rbac';
 import { useAuthStore } from '@/stores/authStore';
 import { useCorrections, useDecideCorrection } from './api';
+import CorrectionDetailModal from './CorrectionDetailModal';
 import { ApiException } from '@/lib/apiClient';
 import type { Correction, CorrectionStatus } from '@/contracts/types';
 
@@ -40,6 +42,7 @@ export default function CorrectionsPage() {
   const confirm = useConfirm();
   const toast = useToast();
   const decide = useDecideCorrection();
+  const [viewing, setViewing] = useState<Correction | null>(null);
 
   const status = (searchParams.get('status') ?? '') as CorrectionStatus | '';
   const { data, isLoading } = useCorrections({
@@ -174,6 +177,9 @@ export default function CorrectionsPage() {
                   </div>
 
                   <div className="flex items-center gap-space-xs">
+                    <Button variant="ghost" onClick={() => setViewing(row)}>
+                      View
+                    </Button>
                     {canDecide && (
                       <>
                         <Button variant="secondary" onClick={() => act(row, 'rejected')}>
@@ -199,6 +205,8 @@ export default function CorrectionsPage() {
           </ul>
         )}
       </div>
+
+      <CorrectionDetailModal correction={viewing} onClose={() => setViewing(null)} />
     </>
   );
 }

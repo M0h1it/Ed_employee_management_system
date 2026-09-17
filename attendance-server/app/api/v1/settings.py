@@ -4,7 +4,7 @@ app/api/v1/settings.py
 Own profile, and company attendance policy.
 """
 
-from datetime import time
+from datetime import date, time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
@@ -14,7 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import Actor, get_current_actor, requires
 from app.core.audit import record_audit
 from app.core.db import get_session
-from app.models import Employee, Shift
+from app.core.timeutil import local_today
+from app.models import Employee, Shift, ShiftPolicyVersion
 from app.schemas.common import Single
 
 router = APIRouter(tags=["settings"])
@@ -33,6 +34,15 @@ class OrgSettingsUpdate(BaseModel):
     shiftEnd: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     graceMinutes: int | None = Field(default=None, ge=0, le=120)
     minHours: float | None = Field(default=None, ge=1, le=16)
+    # The date this policy takes effect — defaults to today when omitted.
+    # This is what makes a change stop being retroactive: a version row
+    # effective from this date means every day BEFORE it keeps matching
+    # whichever version (or the pre-versioning fallback) was already
+    # correct for it. Backdating this is deliberately still possible (an
+    # admin fixing a policy that should have applied from an earlier date)
+    # rather than clamped to "today or later" — the same trust already
+    # extended to a manual punch or a correction with an admin-chosen time.
+    effectiveFrom: date | None = None
 
 
 class ProfileUpdate(BaseModel):
@@ -50,7 +60,7 @@ def _shift_out(shift: Shift) -> OrgSettings:
         shiftEnd=shift.end_time.strftime("%H:%M"),
         graceMinutes=shift.grace_minutes,
         minHours=float(shift.min_hours),
-        companyName="Nexus Operations",
+        companyName="SmartPunch",
     )
 
 
@@ -74,15 +84,23 @@ async def update_settings(
     session: AsyncSession = Depends(get_session),
 ):
     """
-    THIS CHANGE IS RETROACTIVE, AND THAT IS INTENDED.
+    Updates the CURRENT policy (the `shifts` row, unchanged from before) AND
+    records a ShiftPolicyVersion effective from body.effectiveFrom (today,
+    if not given).
 
-    Attendance days are derived from punch events rather than stored, so
-    narrowing the grace period reclassifies people who were on time last month.
-    That is what makes a policy change work without a migration — and it is
-    also something nobody should discover by accident, which is why the UI
-    confirms it in as many words before sending this request.
+    Why both: nine other places in this codebase read `shifts` for "what is
+    the policy right now" and have no reason to care about history — see
+    the migration's own docstring for the full list. Those keep working
+    unmodified. The four places that actually compute a specific day's
+    attendance (attendance.py, corrections.py, dashboard.py, export.py) go
+    through pick_shift_for_date() instead, which is what makes a change
+    here stop being retroactive for days before effectiveFrom — the
+    opposite of this endpoint's own historical behaviour, which is why this
+    docstring used to say "THIS CHANGE IS RETROACTIVE, AND THAT IS
+    INTENDED": that was true before shift policy versioning existed, and is
+    the specific behaviour this change replaces.
 
-    Punch records themselves are never altered.
+    Punch records themselves are never altered, exactly as before.
     """
     shift = (await session.execute(select(Shift).order_by(Shift.name))).scalars().first()
     if shift is None:
@@ -115,9 +133,39 @@ async def update_settings(
             "message": "Please fix the highlighted fields.",
             "fields": {"shiftEnd": "The shift must end after it starts"}}})
 
-    # A policy change is RETROACTIVE — it reclassifies every past day, because
-    # days are derived from punches rather than stored. Recording the old rule
-    # is the only way to explain later why last month's figures moved.
+    effective_from = body.effectiveFrom or local_today()
+
+    # UPSERT on (shift_id, effective_from) — the unique constraint the
+    # migration created. Saving the policy twice for the same
+    # effective_from (a typo, then an immediate correction) updates that
+    # one version rather than erroring on a duplicate or silently creating
+    # two versions that would tie for the same day.
+    existing_version = (await session.execute(
+        select(ShiftPolicyVersion).where(
+            ShiftPolicyVersion.shift_id == shift.id,
+            ShiftPolicyVersion.effective_from == effective_from,
+        )
+    )).scalar_one_or_none()
+
+    if existing_version is not None:
+        existing_version.start_time = shift.start_time
+        existing_version.end_time = shift.end_time
+        existing_version.grace_minutes = shift.grace_minutes
+        existing_version.min_hours = shift.min_hours
+    else:
+        session.add(ShiftPolicyVersion(
+            shift_id=shift.id,
+            start_time=shift.start_time,
+            end_time=shift.end_time,
+            grace_minutes=shift.grace_minutes,
+            min_hours=shift.min_hours,
+            effective_from=effective_from,
+        ))
+
+    # The audit record now includes the effective date — "what changed" was
+    # already here; "from when" is the other half of the same fact, and
+    # without it the audit log cannot explain why two different attendance
+    # exports covering the same past days show different numbers.
     await record_audit(
         session, actor_user_id=actor.user_id, action="settings.update",
         entity="shift", entity_id=shift.id, request=request,
@@ -127,11 +175,59 @@ async def update_settings(
             "shiftEnd": shift.end_time.strftime("%H:%M"),
             "graceMinutes": shift.grace_minutes,
             "minHours": float(shift.min_hours),
+            "effectiveFrom": effective_from.isoformat(),
         },
     )
     await session.commit()
     await session.refresh(shift)
     return Single(data=_shift_out(shift))
+
+
+class ShiftPolicyVersionOut(BaseModel):
+    id: str
+    shiftStart: str
+    shiftEnd: str
+    graceMinutes: int
+    minHours: float
+    effectiveFrom: date
+    createdAt: str
+
+
+@router.get("/settings/history", response_model=Single[list[ShiftPolicyVersionOut]])
+async def list_settings_history(
+    actor: Actor = Depends(requires("settings.manage")),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Every saved policy version, newest effective_from first — what
+    OrgPanel's history list on the settings screen renders. Gated the same
+    as changing the policy (settings.manage), not merely viewing it
+    (get_settings has no permission check beyond being signed in) — this is
+    the audit trail for a company-wide policy, not something every
+    employee needs to see just to check their own shift times.
+    """
+    shift = (await session.execute(select(Shift).order_by(Shift.name))).scalars().first()
+    if shift is None:
+        return Single(data=[])
+
+    rows = (await session.execute(
+        select(ShiftPolicyVersion)
+        .where(ShiftPolicyVersion.shift_id == shift.id)
+        .order_by(ShiftPolicyVersion.effective_from.desc())
+    )).scalars().all()
+
+    return Single(data=[
+        ShiftPolicyVersionOut(
+            id=str(v.id),
+            shiftStart=v.start_time.strftime("%H:%M"),
+            shiftEnd=v.end_time.strftime("%H:%M"),
+            graceMinutes=v.grace_minutes,
+            minHours=float(v.min_hours),
+            effectiveFrom=v.effective_from,
+            createdAt=v.created_at.isoformat(),
+        )
+        for v in rows
+    ])
 
 
 @router.patch("/me/profile")

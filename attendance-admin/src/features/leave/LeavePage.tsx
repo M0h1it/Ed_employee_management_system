@@ -36,6 +36,9 @@ const TYPE_LABELS: Record<string, string> = {
   earned: 'Earned',
   unpaid: 'Unpaid',
   comp_off: 'Comp off',
+  planned: 'Planned leave',
+  unplanned: 'Unplanned leave',
+  emergency: 'Emergency',
 };
 
 function statusTone(status: LeaveStatus) {

@@ -191,7 +191,7 @@ export default function Sidebar() {
                   is always full width, so it always shows. */}
               <div className={clsx('flex min-w-0 flex-col', collapsed && 'lg:hidden')}>
                 <span className="truncate font-headline-sm text-headline-sm leading-tight text-zinc-900">
-                  Nexus Operations
+                  SmartPunch
                 </span>
                 <span className="mt-space-xxs truncate font-label-sm text-label-sm leading-none text-zinc-500">
                   {subtitle}

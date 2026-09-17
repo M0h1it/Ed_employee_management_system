@@ -73,6 +73,7 @@ def _user_out(user: User) -> UserOut:
         roleName=user.role.name if user.role else "",
         isActive=user.is_active,
         mustChangePassword=user.must_change_password,
+        hasPinSet=bool(user.pin_hash),
         lastLoginAt=user.last_login_at,
         createdAt=user.created_at,
     )

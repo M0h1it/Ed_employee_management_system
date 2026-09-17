@@ -23,6 +23,7 @@ import EmptyState from '@/components/common/EmptyState';
 import PermissionGate from '@/components/common/PermissionGate';
 import TaskCard from './TaskCard';
 import TaskForm from './TaskForm';
+import TaskDetailModal from './TaskDetailModal';
 import TaskTimeline from './TaskTimeline';
 import TaskScheduleTable from './TaskScheduleTable';
 import { useTasks, useCompleteTask, useUpdateTask, useTaskTimeline } from './api';
@@ -42,6 +43,7 @@ export default function TasksPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
+  const [viewing, setViewing] = useState<Task | null>(null);
   const [selfMode, setSelfMode] = useState(false);
   const confirm = useConfirm();
   const toast = useToast();
@@ -243,6 +245,7 @@ export default function TasksPage() {
                       canComplete={canComplete || canAssign}
                       canEdit={canEdit}
                       hideAssignee={!canViewAll}
+                      onView={(t) => setViewing(t)}
                       onEdit={(t) => {
                         setEditing(t);
                         setSelfMode(false);
@@ -284,6 +287,8 @@ export default function TasksPage() {
         task={editing}
         selfMode={selfMode}
       />
+
+      <TaskDetailModal task={viewing} onClose={() => setViewing(null)} />
     </>
   );
 }

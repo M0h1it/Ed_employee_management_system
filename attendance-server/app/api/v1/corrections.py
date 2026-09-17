@@ -31,10 +31,12 @@ from app.domain.attendance_rules import (
     Punch,
     PunchDirection,
     PunchSource,
+    ShiftPolicyVersion as DomainShiftPolicyVersion,
     ShiftRule,
     build_day,
+    pick_shift_for_date,
 )
-from app.models import Correction, Employee, PunchEvent, Shift, User
+from app.models import Correction, Employee, PunchEvent, Shift, ShiftPolicyVersion, User
 from app.schemas.common import Paginated, Single, page_meta
 from app.schemas.correction import CorrectionCreate, CorrectionDecision, CorrectionOut
 
@@ -60,14 +62,32 @@ async def _current_times(
     if not punches:
         return None, None
 
+    # The policy that was actually in effect on THIS day, not whatever the
+    # policy happens to be right now — a correction request made months
+    # after a grace-period change should not have its "current" side
+    # recomputed under a rule that did not exist on the day in question.
     shift_row = (await session.execute(select(Shift).order_by(Shift.name))).scalars().first()
     from datetime import time as _time
-    shift = ShiftRule(
+    fallback = ShiftRule(
         start_time=shift_row.start_time if shift_row else _time(9, 0),
         end_time=shift_row.end_time if shift_row else _time(18, 0),
         grace_minutes=shift_row.grace_minutes if shift_row else 15,
         min_hours=float(shift_row.min_hours) if shift_row else 8.0,
     )
+    versions: list[DomainShiftPolicyVersion] = []
+    if shift_row is not None:
+        version_rows = (await session.execute(
+            select(ShiftPolicyVersion).where(ShiftPolicyVersion.shift_id == shift_row.id)
+        )).scalars().all()
+        versions = [
+            DomainShiftPolicyVersion(
+                start_time=v.start_time, end_time=v.end_time,
+                grace_minutes=v.grace_minutes, min_hours=float(v.min_hours),
+                effective_from=v.effective_from,
+            )
+            for v in version_rows
+        ]
+    shift = pick_shift_for_date(versions, day, fallback)
     result = build_day(day=day, punches=punches, shift=shift, now=local_now())
     return result.first_in, result.last_out
 
@@ -162,7 +182,13 @@ async def list_corrections(
 
     data = []
     for r in rows:
-        current_in, current_out = await _current_times(session, r.employee_id, r.date)
+        # The snapshot taken at request time is what "before" should show —
+        # falling back to a live recomputation only for rows created before
+        # snapshot_in/snapshot_out existed (see this table's own migration).
+        if r.snapshot_in is not None or r.snapshot_out is not None:
+            current_in, current_out = r.snapshot_in, r.snapshot_out
+        else:
+            current_in, current_out = await _current_times(session, r.employee_id, r.date)
         data.append(_to_out(
             r, employees.get(r.employee_id),
             names.get(r.requested_by, "Removed account"),
@@ -214,12 +240,22 @@ async def request_correction(
             "code": "EXISTING_CORRECTION",
             "message": f"There is already a {clash.status} correction for this day."}})
 
+    # Captured ONCE, here, at request time — never recomputed later. This is
+    # what request_correction's own docstring (see the migration) fixes:
+    # without a stored snapshot, "what the register said" was recomputed
+    # live every time the correction was viewed, so a punch added after
+    # submission could silently change what "before" meant for an
+    # already-submitted request.
+    snapshot_in, snapshot_out = await _current_times(session, employee_id, body.date)
+
     correction = Correction(
         employee_id=employee_id,
         date=body.date,
         reason=body.reason.strip(),
         proposed_in=body.proposedIn,
         proposed_out=body.proposedOut,
+        snapshot_in=snapshot_in,
+        snapshot_out=snapshot_out,
         requested_by=actor.user_id,
         status="pending",
     )
@@ -312,7 +348,10 @@ async def decide_correction(
             .where(User.id == correction.approved_by))).scalar_one_or_none()
         approver = row.employee.name if row and row.employee else None
 
-    current_in, current_out = await _current_times(session, correction.employee_id, correction.date)
+    if correction.snapshot_in is not None or correction.snapshot_out is not None:
+        current_in, current_out = correction.snapshot_in, correction.snapshot_out
+    else:
+        current_in, current_out = await _current_times(session, correction.employee_id, correction.date)
     return Single(data=_to_out(
         correction, employee,
         requester.employee.name if requester and requester.employee else "Removed account",

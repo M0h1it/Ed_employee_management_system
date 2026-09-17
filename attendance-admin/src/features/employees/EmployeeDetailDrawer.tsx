@@ -17,7 +17,6 @@ import { useState } from 'react';
 import * as Tabs from '@radix-ui/react-tabs';
 import { format, subDays } from 'date-fns';
 import Drawer from '@/components/common/Drawer';
-import Avatar from '@/components/common/Avatar';
 import PhotoUpload from '@/components/common/PhotoUpload';
 import FaceEnrolment from './FaceEnrolment';
 import PinGenerator from './PinGenerator';
@@ -215,6 +214,7 @@ export default function EmployeeDetailDrawer({ employee, onClose, onEdit }: Prop
               <PinGenerator
                 userId={loginAccount.id}
                 employeeName={employee.name}
+                hasPinSet={loginAccount.hasPinSet}
                 editable={canGeneratePin}
               />
             </div>

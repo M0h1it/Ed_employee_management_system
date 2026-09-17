@@ -178,6 +178,7 @@ export const userHandlers = [
       roleName: role!.name,
       isActive: true,
       mustChangePassword: body.mustChangePassword,
+      hasPinSet: false, // a newly created account has no PIN generated yet
       lastLoginAt: null,
       createdAt: new Date().toISOString(),
     };

@@ -60,6 +60,7 @@ class AttendanceFlag(str, Enum):
 
     LATE_IN = "LATE_IN"
     EARLY_OUT = "EARLY_OUT"
+    OVERTIME = "OVERTIME"
     MISSING_OUT = "MISSING_OUT"
     MISSING_IN = "MISSING_IN"
     SHORT_HOURS = "SHORT_HOURS"
@@ -115,6 +116,46 @@ class ShiftRule:
     min_hours: float = 8.0
 
 
+@dataclass(frozen=True)
+class ShiftPolicyVersion:
+    """
+    Plain data mirror of the ShiftPolicyVersion model — this module takes no
+    import from app.models, so the caller reads rows and hands over values,
+    the same convention Punch and Correction already follow above.
+    """
+    start_time: time
+    end_time: time
+    grace_minutes: int
+    min_hours: float
+    effective_from: date
+
+
+def pick_shift_for_date(versions: list[ShiftPolicyVersion], day: date, fallback: ShiftRule) -> ShiftRule:
+    """
+    The policy that was actually in effect on `day` — the LATEST version
+    whose effective_from is on or before that day, never a later one.
+
+    This is what makes a policy change stop being retroactive: editing
+    today's grace period inserts a new version effective from today, so
+    every day before today keeps matching whatever version was already
+    effective_from-eligible for it, unaffected by the edit.
+
+    `fallback` is `shifts`' own current row — used when there is no
+    version at all (a fresh install, or a day before this feature existed
+    and no version was ever backfilled for it). This is not a silent bug:
+    it is the explicitly chosen behaviour for exactly that gap, matching
+    what every day already did before shift policy versioning existed.
+    """
+    candidates = [v for v in versions if v.effective_from <= day]
+    if not candidates:
+        return fallback
+    latest = max(candidates, key=lambda v: v.effective_from)
+    return ShiftRule(
+        start_time=latest.start_time, end_time=latest.end_time,
+        grace_minutes=latest.grace_minutes, min_hours=latest.min_hours,
+    )
+
+
 @dataclass
 class DayResult:
     first_in: datetime | None
@@ -126,6 +167,20 @@ class DayResult:
     # appending a flag to one would append it to all of them.
     flags: list[AttendanceFlag] = field(default_factory=list)
     punch_count: int = 0
+    # How many minutes past the grace cutoff first_in was — only set
+    # alongside AttendanceFlag.LATE_IN, never on a day that was not late.
+    # A bare LATE_IN flag with no number is exactly what made "Late" and
+    # "Late by 12 minutes" indistinguishable in every screen that showed
+    # only the flag; this is what those screens now have to show instead.
+    late_by_minutes: int | None = None
+    # How many minutes before shift end last_out was — only set alongside
+    # AttendanceFlag.EARLY_OUT. Always positive; the flag itself is what
+    # says "early", so this is a magnitude, not a signed offset.
+    early_by_minutes: int | None = None
+    # How many minutes past shift end last_out was — only set alongside
+    # AttendanceFlag.OVERTIME. Always positive, same "magnitude, not
+    # signed" reasoning as early_by_minutes.
+    overtime_minutes: int | None = None
 
     @property
     def payable_minutes(self) -> int:
@@ -304,12 +359,21 @@ def build_day(
     # invented time silently becomes somebody's payable hours.
 
     # --- Flags -------------------------------------------------------------
+    late_by_minutes: int | None = None
+    early_by_minutes: int | None = None
+    overtime_minutes: int | None = None
+
     if first_in:
         cutoff = _combine(day, shift.start_time) + timedelta(minutes=shift.grace_minutes)
         if first_in.tzinfo is not None:
             cutoff = cutoff.replace(tzinfo=first_in.tzinfo)
         if first_in > cutoff:
             flags.append(AttendanceFlag.LATE_IN)
+            # Minutes late from the CUTOFF (start + grace), not from
+            # start_time itself — someone arriving 16 minutes after start
+            # with a 15-minute grace period is 1 minute late, not 16. The
+            # flag's own threshold and its displayed number have to agree.
+            late_by_minutes = _minutes_between(cutoff, first_in)
 
     if first_in and not last_out and not is_today:
         flags.append(AttendanceFlag.MISSING_OUT)
@@ -321,8 +385,23 @@ def build_day(
         shift_end = _combine(day, shift.end_time)
         if last_out.tzinfo is not None:
             shift_end = shift_end.replace(tzinfo=last_out.tzinfo)
-        if _minutes_between(last_out, shift_end) > 15:
-            flags.append(AttendanceFlag.EARLY_OUT)
+
+        if last_out < shift_end:
+            minutes_short = _minutes_between(last_out, shift_end)
+            if minutes_short > 15:
+                flags.append(AttendanceFlag.EARLY_OUT)
+                early_by_minutes = minutes_short
+        else:
+            # Symmetric with EARLY_OUT's own 15-minute threshold — leaving
+            # 5 minutes after shift end is not "overtime" any more than
+            # leaving 5 minutes early is "early", it is just when the day
+            # happened to end. Below this, OVERTIME would fire on nearly
+            # every ordinary day and stop meaning anything.
+            minutes_over = _minutes_between(shift_end, last_out)
+            if minutes_over > 15:
+                flags.append(AttendanceFlag.OVERTIME)
+                overtime_minutes = minutes_over
+
         if 0 < worked_minutes < shift.min_hours * 60:
             flags.append(AttendanceFlag.SHORT_HOURS)
 
@@ -352,12 +431,16 @@ def build_day(
         status=status,
         flags=flags,
         punch_count=len(ordered),
+        late_by_minutes=late_by_minutes,
+        early_by_minutes=early_by_minutes,
+        overtime_minutes=overtime_minutes,
     )
 
 
 FLAG_LABELS: dict[AttendanceFlag, str] = {
     AttendanceFlag.LATE_IN: "Late",
     AttendanceFlag.EARLY_OUT: "Left early",
+    AttendanceFlag.OVERTIME: "Worked more",
     AttendanceFlag.MISSING_OUT: "Missing out",
     AttendanceFlag.MISSING_IN: "Missing in",
     AttendanceFlag.SHORT_HOURS: "Short hours",

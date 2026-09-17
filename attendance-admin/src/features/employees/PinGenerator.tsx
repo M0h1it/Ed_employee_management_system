@@ -34,22 +34,33 @@ interface PinGenerated {
 interface Props {
   userId: string;
   employeeName: string;
+  /** Whether a PIN has ever been generated for this account already — drives
+   * the green/checked indicator, the same pattern FaceEnrolment.tsx uses for
+   * its own enrolled state. */
+  hasPinSet: boolean;
   /** False when the viewer may not generate a PIN — pin.generate, not
    * users.manage, matching the backend's separate permission gate. */
   editable?: boolean;
 }
 
-export default function PinGenerator({ userId, employeeName, editable = true }: Props) {
+export default function PinGenerator({ userId, employeeName, hasPinSet, editable = true }: Props) {
   const [busy, setBusy] = useState(false);
   const [reveal, setReveal] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Tracks "has a PIN now" for THIS session, seeded from the prop but
+  // flipped locally the instant generate() succeeds — there is no
+  // lightweight re-fetch that would tell us this sooner than the
+  // response we already have in hand.
+  const [justGenerated, setJustGenerated] = useState(false);
   const toast = useToast();
+  const isSet = hasPinSet || justGenerated;
 
   async function generate() {
     setBusy(true);
     try {
       const response = await apiClient.post<Single<PinGenerated>>(EP.users.pin(userId));
       setReveal(response.data.pin);
+      setJustGenerated(true);
       setConfirmOpen(false);
     } catch (error) {
       toast(
@@ -67,11 +78,15 @@ export default function PinGenerator({ userId, employeeName, editable = true }: 
     <>
       <div className="flex items-center justify-between gap-space-sm rounded-2xl border border-black/[0.06] bg-zinc-50 px-space-md py-space-sm">
         <div className="flex items-center gap-space-xs">
-          <span className="icon text-[18px] text-zinc-400">password</span>
+          <span className={isSet ? 'icon text-[18px] text-emerald-600' : 'icon text-[18px] text-zinc-400'}>
+            {isSet ? 'verified_user' : 'password'}
+          </span>
           <div className="flex flex-col">
             <span className="font-label-md text-label-md text-zinc-900">Kiosk PIN</span>
             <span className="font-label-sm text-label-sm text-zinc-400">
-              For offline check-in, or when face matching fails.
+              {isSet
+                ? 'A PIN is set for kiosk check-in.'
+                : 'For offline check-in, or when face matching fails.'}
             </span>
           </div>
         </div>

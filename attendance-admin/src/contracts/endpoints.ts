@@ -111,6 +111,7 @@ export const EP = {
     departments: `${API_BASE}/departments`,
     shifts: `${API_BASE}/shifts`,
     settings: `${API_BASE}/settings`,
+    settingsHistory: `${API_BASE}/settings/history`,
   },
 } as const;
 

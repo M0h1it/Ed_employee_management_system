@@ -32,7 +32,7 @@ export default function MobileTopBar() {
           N
         </div>
         <span className="truncate font-headline-sm text-headline-sm text-zinc-900">
-          Nexus Operations
+          SmartPunch
         </span>
       </div>
 

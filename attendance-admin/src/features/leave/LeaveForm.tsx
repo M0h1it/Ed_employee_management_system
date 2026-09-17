@@ -36,11 +36,11 @@ const schema = z
 type Values = z.infer<typeof schema>;
 
 const TYPES = [
-  { value: 'casual', label: 'Casual' },
+  { value: 'planned', label: 'Planned leave' },
+  { value: 'unplanned', label: 'Unplanned leave' },
+  { value: 'emergency', label: 'Emergency' },
   { value: 'sick', label: 'Sick' },
-  { value: 'earned', label: 'Earned' },
   { value: 'unpaid', label: 'Unpaid' },
-  { value: 'comp_off', label: 'Comp off' },
 ];
 
 export default function LeaveForm({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -167,7 +167,7 @@ export default function LeaveForm({ open, onClose }: { open: boolean; onClose: (
         </div>
 
         <div className="flex items-center justify-between rounded-xl bg-zinc-50 px-space-base py-space-sm">
-          <span className="font-label-sm text-label-sm text-zinc-500">Working days</span>
+          <span className="font-label-sm text-label-sm text-zinc-500">Leave days</span>
           <span className="font-mono-data text-[15px] font-semibold text-zinc-900">
             {workingDays}
           </span>

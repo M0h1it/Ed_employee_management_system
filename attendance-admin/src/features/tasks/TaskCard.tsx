@@ -16,6 +16,7 @@ interface Props {
   onMove?: (task: Task, status: Task['status']) => void;
   onEdit?: (task: Task) => void;
   onReopen?: (task: Task) => void;
+  onView?: (task: Task) => void;
   canComplete: boolean;
   canEdit: boolean;
   /** Hide the assignee row when every card on screen is the same person's. */
@@ -28,6 +29,7 @@ export default function TaskCard({
   onMove,
   onEdit,
   onReopen,
+  onView,
   canComplete,
   canEdit,
   hideAssignee,
@@ -52,6 +54,19 @@ export default function TaskCard({
         </p>
         <div className="flex shrink-0 items-center gap-space-xs">
           <PriorityBadge priority={task.priority} />
+          {onView && (
+            <button
+              onClick={() => onView(task)}
+              aria-label={`View "${task.title}"`}
+              /* Always visible, unlike Edit below — viewing a task's full
+                 detail is available to everyone who can see the card at
+                 all, not gated the way editing is, so it does not need the
+                 same hover-to-reveal treatment. */
+              className="rounded-lg p-1 text-zinc-300 hover:bg-zinc-100 hover:text-zinc-600"
+            >
+              <span className="icon text-[15px]">visibility</span>
+            </button>
+          )}
           {canEdit && onEdit && (
             <button
               onClick={() => onEdit(task)}

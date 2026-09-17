@@ -101,7 +101,7 @@ export default function PhotoUpload({
 
   return (
     <div className="flex items-center gap-space-base">
-      <Avatar name={name} photoUrl={preview ?? photoUrl} size="lg" />
+      <Avatar name={name} photoUrl={preview ?? photoUrl} size="lg" showPhoto />
 
       {editable && (
         <div className="flex flex-col gap-space-xs">

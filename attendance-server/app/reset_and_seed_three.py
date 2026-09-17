@@ -53,10 +53,19 @@ from app.models import Department, Employee, EmployeeStatus, Permission, Role, S
 # introspected from the metadata, so this script fails loudly if a new
 # table is added later and not accounted for here, rather than silently
 # leaving it untouched.
+#
+# shift_policy_versions and CASCADE: this table has a foreign key to
+# shifts.id, so TRUNCATE ... CASCADE on shifts would already wipe it
+# implicitly — it's still listed explicitly here (rather than relied upon
+# implicitly) for the same "fails loudly if forgotten" reason as every
+# other table in this list, and because a version row referencing a
+# shift_id that no longer exists after a wipe is exactly the kind of
+# orphaned-data bug this explicit list exists to prevent.
 TABLES = [
     "attendance_days", "audit_log", "corrections", "departments", "devices",
     "employees", "face_templates", "holidays", "leaves", "permissions",
-    "punch_events", "refresh_tokens", "roles", "shifts", "tasks", "users",
+    "punch_events", "refresh_tokens", "roles", "shift_policy_versions",
+    "shifts", "tasks", "users",
 ]
 
 

@@ -1,7 +1,12 @@
 /**
  * src/components/common/Avatar.tsx
  *
- * Photo if there is one, initials if there is not.
+ * Initials by default, everywhere. A person's actual photo only shows when
+ * the caller explicitly opts in with showPhoto (see PhotoUpload.tsx, the
+ * one place that does) — every list, table, card, and dashboard row uses
+ * this same component but stays initials-only, on purpose: seeing someone's
+ * face should require opening their own record, not just scanning a list
+ * they happen to appear in.
  *
  * WHY A COMPONENT AND NOT A DIV EACH TIME: twelve of the twelve employees in
  * the fixtures have photoUrl null, and in production plenty will too. The
@@ -19,6 +24,17 @@ interface Props {
   size?: 'sm' | 'md' | 'lg';
   /** Squircle matches the design; circle is for the sidebar footer. */
   shape?: 'squircle' | 'circle';
+  /**
+   * Shows the actual photo instead of initials when true. Defaults to
+   * false — every list/table/row context (employee list, task cards,
+   * corrections, audit log, dashboards) uses initials-only by design, so a
+   * person's face only appears on their own profile/detail view
+   * (PhotoUpload.tsx, which explicitly opts in) and nowhere else. This
+   * keeps a consistent, private-by-default surface: seeing someone's photo
+   * requires opening their record, not just scanning a list they happen to
+   * be in.
+   */
+  showPhoto?: boolean;
 }
 
 const SIZES = {
@@ -32,6 +48,7 @@ export default function Avatar({
   photoUrl,
   size = 'md',
   shape = 'squircle',
+  showPhoto = false,
 }: Props) {
   const radius = shape === 'circle' ? 'rounded-[50%]' : 'rounded-xl';
 
@@ -49,7 +66,7 @@ export default function Avatar({
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [photoUrl]);
 
-  if (photoUrl && !failed) {
+  if (showPhoto && photoUrl && !failed) {
     return (
       <img
         src={photoUrl}

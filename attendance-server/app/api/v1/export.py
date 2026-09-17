@@ -156,7 +156,16 @@ async def export_attendance(
                 employee.emp_code,
                 employee.name,
                 employee.department.name if employee.department else "",
-                current.isoformat(),
+                # Wrapped as an Excel formula (="2026-09-17") rather than a
+                # bare "2026-09-17" — a plain ISO date string is exactly
+                # what triggers Excel's own date auto-detection on CSV
+                # import, which then applies ITS OWN default date format
+                # (often a locale-specific one) at a column width that was
+                # never set for it, producing the "####" overflow display.
+                # The ="..." form forces Excel to treat the cell as text
+                # from the start, so the date renders exactly as written,
+                # at whatever width the column already is.
+                f'="{current.isoformat()}"',
                 current.strftime("%a"),
                 result.first_in.strftime("%H:%M") if result.first_in else "",
                 result.last_out.strftime("%H:%M") if result.last_out else "",

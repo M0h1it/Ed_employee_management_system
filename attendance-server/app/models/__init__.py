@@ -36,7 +36,7 @@ from app.models.auth import (  # noqa: F401
 )
 from app.models.employee import Employee, EmployeeStatus  # noqa: F401
 from app.models.face import FaceTemplate  # noqa: F401
-from app.models.org import Department, Holiday, Shift  # noqa: F401
+from app.models.org import Department, Holiday, Shift, ShiftPolicyVersion  # noqa: F401
 from app.models.task import Task, TaskPriority, TaskStatus  # noqa: F401
 
 __all__ = [
@@ -60,6 +60,7 @@ __all__ = [
     "RefreshToken",
     "Role",
     "Shift",
+    "ShiftPolicyVersion",
     "Task",
     "TaskPriority",
     "TaskStatus",

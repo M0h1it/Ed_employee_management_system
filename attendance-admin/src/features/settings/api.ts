@@ -7,6 +7,8 @@ import { apiClient } from '@/lib/apiClient';
 import { EP } from '@/contracts/endpoints';
 import type {
   OrgSettings,
+  OrgSettingsUpdate,
+  ShiftPolicyVersion,
   UpdateProfileRequest,
   ChangePasswordRequest,
   Employee,
@@ -21,13 +23,24 @@ export function useOrgSettings() {
   });
 }
 
+export function useShiftPolicyHistory() {
+  return useQuery({
+    queryKey: ['org-settings', 'history'],
+    queryFn: () => apiClient.get<Single<ShiftPolicyVersion[]>>(EP.org.settingsHistory),
+  });
+}
+
 export function useUpdateOrgSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: Partial<OrgSettings>) =>
+    mutationFn: (body: OrgSettingsUpdate) =>
       apiClient.patch<Single<OrgSettings>>(EP.org.settings, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org-settings'] });
+      // 'org-settings' alone does not match the ['org-settings', 'history']
+      // key useShiftPolicyHistory registers above — a new version just got
+      // saved and the history list needs to show it without a manual refresh.
+      qc.invalidateQueries({ queryKey: ['org-settings', 'history'] });
       /**
        * Attendance days are DERIVED from punches using these rules, so changing
        * the grace period or shift times changes every past day too. Dropping

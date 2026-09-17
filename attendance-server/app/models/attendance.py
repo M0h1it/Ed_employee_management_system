@@ -65,6 +65,15 @@ class LeaveType(str, enum.Enum):
     unpaid = "unpaid"
     comp_off = "comp_off"
     work_from_home = "work_from_home"
+    # Added per an explicit request to change the Apply for Leave form's
+    # type list to planned/unplanned/emergency rather than the original
+    # five above — those originals are kept here (never removed; Postgres
+    # cannot drop an ENUM value, see this table's own migration) so any
+    # existing leave row keeps working, but the frontend's dropdown now
+    # offers these three plus sick and unpaid instead of the original five.
+    planned = "planned"
+    unplanned = "unplanned"
+    emergency = "emergency"
 
 
 class LeaveStatus(str, enum.Enum):
@@ -199,6 +208,16 @@ class Correction(UUIDPrimaryKey, Timestamps, Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
     proposed_in: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     proposed_out: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # What the register actually said, captured ONCE at the moment this
+    # correction was requested — never recomputed. Nullable because rows
+    # created before this column existed have no way to recover that
+    # moment; every correction created after does. See this table's own
+    # migration (20260917_1400_correction_snapshot.py) for the bug this
+    # fixes: recomputing "current" live meant a correction's own "before"
+    # side could silently change after the fact if a punch changed later.
+    snapshot_in: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    snapshot_out: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     requested_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")

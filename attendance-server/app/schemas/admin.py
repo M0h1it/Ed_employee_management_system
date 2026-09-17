@@ -49,6 +49,12 @@ class UserOut(BaseModel):
     roleName: str
     isActive: bool
     mustChangePassword: bool
+    # Whether a kiosk PIN has ever been generated for this account — never
+    # the PIN itself, not even hashed, the same "boolean only" pattern
+    # mustChangePassword already uses. This is what lets the admin UI show
+    # a "PIN set" indicator without exposing anything that could be used
+    # to guess or verify the actual PIN.
+    hasPinSet: bool
     lastLoginAt: datetime | None = None
     createdAt: datetime
     # Never a password field, in any direction. Not even hashed.

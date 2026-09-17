@@ -33,6 +33,7 @@ export const users: User[] = [
     roleName: 'Owner',
     isActive: true,
     mustChangePassword: false,
+    hasPinSet: true,
     lastLoginAt: '2026-10-24T08:31:00+05:30',
     createdAt: '2021-03-01T10:00:00+05:30',
   },
@@ -46,6 +47,7 @@ export const users: User[] = [
     roleName: 'Manager',
     isActive: true,
     mustChangePassword: false,
+    hasPinSet: true,
     lastLoginAt: '2026-10-23T18:04:00+05:30',
     createdAt: '2022-06-15T10:00:00+05:30',
   },
@@ -59,6 +61,7 @@ export const users: User[] = [
     roleName: 'Employee',
     isActive: true,
     mustChangePassword: true, // admin reset it, forced change at next login
+    hasPinSet: false,
     lastLoginAt: null, // never logged in
     createdAt: '2023-01-09T10:00:00+05:30',
   },

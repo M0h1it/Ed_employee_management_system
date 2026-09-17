@@ -179,6 +179,76 @@ def test_leaving_early_is_flagged():
     assert AttendanceFlag.SHORT_HOURS in result.flags
 
 
+def test_late_arrival_reports_exact_minutes_past_the_grace_cutoff():
+    """09:00 start + 15 min grace = 09:15 cutoff. Arriving at 09:27 is 12
+    minutes late from the CUTOFF, not 27 minutes late from start_time — the
+    displayed number has to agree with what actually crossed the threshold."""
+    result = build_day(
+        day=DAY,
+        punches=[punch(9, 27, PunchDirection.IN), punch(18, 0, PunchDirection.OUT)],
+        shift=SHIFT, now=NOW,
+    )
+    assert AttendanceFlag.LATE_IN in result.flags
+    assert result.late_by_minutes == 12
+
+
+def test_arriving_within_grace_reports_no_late_minutes():
+    result = build_day(
+        day=DAY,
+        punches=[punch(9, 10, PunchDirection.IN), punch(18, 0, PunchDirection.OUT)],
+        shift=SHIFT, now=NOW,
+    )
+    assert AttendanceFlag.LATE_IN not in result.flags
+    assert result.late_by_minutes is None
+
+
+def test_leaving_early_reports_exact_minutes_short():
+    result = build_day(
+        day=DAY,
+        punches=[punch(9, 0, PunchDirection.IN), punch(17, 40, PunchDirection.OUT)],
+        shift=SHIFT, now=NOW,
+    )
+    assert AttendanceFlag.EARLY_OUT in result.flags
+    assert result.early_by_minutes == 20
+    assert result.overtime_minutes is None
+
+
+def test_staying_past_shift_end_is_flagged_as_overtime_with_exact_minutes():
+    result = build_day(
+        day=DAY,
+        punches=[punch(9, 0, PunchDirection.IN), punch(18, 25, PunchDirection.OUT)],
+        shift=SHIFT, now=NOW,
+    )
+    assert AttendanceFlag.OVERTIME in result.flags
+    assert AttendanceFlag.EARLY_OUT not in result.flags
+    assert result.overtime_minutes == 25
+    assert result.early_by_minutes is None
+
+
+def test_a_few_minutes_past_shift_end_is_not_overtime():
+    """Symmetric with EARLY_OUT's own 15-minute threshold — leaving 5 minutes
+    late is just when the day ended, not overtime worth flagging."""
+    result = build_day(
+        day=DAY,
+        punches=[punch(9, 0, PunchDirection.IN), punch(18, 5, PunchDirection.OUT)],
+        shift=SHIFT, now=NOW,
+    )
+    assert AttendanceFlag.OVERTIME not in result.flags
+    assert result.overtime_minutes is None
+
+
+def test_leaving_exactly_on_time_is_neither_early_nor_overtime():
+    result = build_day(
+        day=DAY,
+        punches=[punch(9, 0, PunchDirection.IN), punch(18, 0, PunchDirection.OUT)],
+        shift=SHIFT, now=NOW,
+    )
+    assert AttendanceFlag.EARLY_OUT not in result.flags
+    assert AttendanceFlag.OVERTIME not in result.flags
+    assert result.early_by_minutes is None
+    assert result.overtime_minutes is None
+
+
 def test_a_day_can_carry_several_flags_at_once():
     """Why status and flags are separate fields: one value could not say this."""
     result = build_day(
@@ -329,6 +399,24 @@ def test_a_correction_supplies_a_missing_out_without_touching_the_in():
     assert result.last_out.hour == 18         # supplied
     assert result.worked_minutes == 540
     assert AttendanceFlag.MISSING_OUT not in result.flags
+
+
+def test_a_correction_supplies_a_corrected_in_without_touching_the_out():
+    """The mirror case of the test above — only the IN was wrong, OUT (None
+    proposed) stays whatever the kiosk actually recorded. This is the exact
+    shape of a real reported bug: a correction proposing only a new IN time
+    appeared not to apply, and this locks in that it genuinely does."""
+    from app.domain.attendance_rules import Correction
+
+    result = build_day(
+        day=DAY,
+        punches=[punch(15, 23, PunchDirection.IN)],  # kiosk recorded the wrong arrival time
+        shift=SHIFT,
+        correction=Correction(first_in=datetime(2026, 9, 14, 9, 53), last_out=None),
+        now=NOW,
+    )
+    assert result.first_in.hour == 9 and result.first_in.minute == 53  # corrected
+    assert result.last_out is None  # untouched — nothing was proposed for it
 
 
 def test_a_corrected_day_is_still_marked_as_not_measured():

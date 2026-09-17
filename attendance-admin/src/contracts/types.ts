@@ -186,8 +186,9 @@ export interface EmployeeListParams extends ListParams {
 
 export type PunchDirection = 'IN' | 'OUT';
 
-/** v1 punches come from the admin UI; 'kiosk' arrives in Phase 3. */
-export type PunchSource = 'kiosk' | 'manual';
+/** 'kiosk' and 'pin' both arrive from the kiosk app in Phase 3 — 'pin' is the
+ * offline/face-match-failed fallback path, not a separate admin action. */
+export type PunchSource = 'kiosk' | 'manual' | 'pin';
 
 /**
  * A single raw punch. APPEND-ONLY: never edited, never deleted.
@@ -518,6 +519,10 @@ export interface User {
   roleName: string;
   isActive: boolean;
   mustChangePassword: boolean;
+  /** Whether a kiosk PIN has ever been generated for this account — never
+   * the PIN itself. Used only to show a "PIN set" indicator in
+   * PinGenerator.tsx. */
+  hasPinSet: boolean;
   lastLoginAt: ISODateTime | null;
   createdAt: ISODateTime;
 }
@@ -584,6 +589,31 @@ export interface OrgSettings {
   graceMinutes: number;
   minHours: number;
   companyName: string;
+}
+
+/** What can actually be sent to PATCH /settings — a Partial<OrgSettings>
+ * would also allow sending companyName, which this endpoint has no field
+ * for at all (see settings.py's _shift_out, which hardcodes it). */
+export interface OrgSettingsUpdate {
+  shiftStart?: TimeOfDay;
+  shiftEnd?: TimeOfDay;
+  graceMinutes?: number;
+  minHours?: number;
+  /** The date this policy takes effect. Omitted means "today" — see
+   * settings.py's update_settings for why this is what makes a policy
+   * change stop being retroactive for days before it. */
+  effectiveFrom?: ISODate;
+}
+
+/** One saved policy version — a row from GET /settings/history. */
+export interface ShiftPolicyVersion {
+  id: string;
+  shiftStart: TimeOfDay;
+  shiftEnd: TimeOfDay;
+  graceMinutes: number;
+  minHours: number;
+  effectiveFrom: ISODate;
+  createdAt: ISODateTime;
 }
 
 /** The fields a person may change about themselves. */
@@ -696,7 +726,7 @@ export interface AuditListParams extends ListParams {
  * LEAVE AND HOLIDAYS
  * ========================================================================== */
 
-export type LeaveType = 'casual' | 'sick' | 'earned' | 'unpaid' | 'comp_off';
+export type LeaveType = 'casual' | 'sick' | 'earned' | 'unpaid' | 'comp_off' | 'planned' | 'unplanned' | 'emergency';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 
 export interface Leave {
